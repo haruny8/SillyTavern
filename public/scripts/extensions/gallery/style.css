@@ -1,48 +1,171 @@
-.nGY2 .nGY2GalleryBottom {
+/* ── Panel chrome — modern "photo app" look ──────────────────────────────
+   No overflow:hidden here — the draggable panel template relies on its own
+   resize handles at the edges, and clipping them would break resizing.
+   Corners are rounded on the header (top) and gallery grid (bottom) instead,
+   which reads as fully rounded in practice since backgrounds match. */
+#gallery {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.03),
+        0 0 24px -8px var(--SmartThemeQuoteColor);
+    backdrop-filter: blur(10px);
+}
+
+/* ── Gallery panel header ──────────────────────────────────────────────── */
+
+.gallery-panel-header {
+    padding: 12px 16px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px 14px 0 0;
+}
+
+
+.gallery-panel-title {
+    font-size: calc(var(--mainFontSize) * 1.1);
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    opacity: 0.95;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.gallery-controls-row {
+    gap: 5px;
+    flex-wrap: nowrap;
+    margin-left: auto;
+}
+
+.gallery-add-btn {
+    padding: 2px 8px !important;
+    white-space: nowrap;
+    font-size: calc(var(--mainFontSize) * 0.85) !important;
+    flex-shrink: 0;
+}
+
+.gallery-tag-mode-btn {
+    flex-shrink: 0;
+    transition: color 0.15s, opacity 0.15s;
+}
+
+.gallery-tag-mode-btn.gallery-mode-active {
+    color: var(--SmartThemeQuoteColor) !important;
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+/* Tag mode cursor hint on thumbnails */
+#dragGallery.gallery-tag-mode-on .nGY2GThumbnail {
+    cursor: crosshair !important;
+    outline: 2px dashed var(--SmartThemeQuoteColor);
+    outline-offset: -2px;
+}
+
+/* ── Folder bar (styled as a search field) ───────────────────────────────── */
+
+.gallery-folder-bar {
+    padding: 10px 16px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background-color: transparent;
+}
+
+.gallery-folder-bar > .right_menu_button {
+    flex-shrink: 0;
+    font-size: 18px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    border-radius: 8px;
+}
+
+/* Push the whole icon group (check/tag/trash/recycle) to the far right of the
+   bar, away from the search input. Works because these are the only div
+   siblings after the <input>, so :first-of-type lands on the first icon. */
+.gallery-folder-bar > .right_menu_button:first-of-type {
+    margin-left: auto;
+}
+
+/* Extra breathing room between the icons themselves (on top of the bar's
+   own 8px gap) */
+.gallery-folder-bar > .right_menu_button + .right_menu_button {
+    margin-left: 6px;
 }
 
 .gallery-folder-input {
-    background-color: transparent;
-    font-size: calc(var(--mainFontSize)* 0.9);
-    opacity: 0.8;
-    flex-grow: 1;
+    background-color: var(--black30a) !important;
+    font-size: calc(var(--mainFontSize) * 0.92);
+    opacity: 0.95;
+    flex: 0 1 150px;
+    min-width: 80px;
+    border-radius: 999px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 5px 14px 5px 30px !important;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>");
+    background-repeat: no-repeat;
+    background-position: 10px center;
+    background-size: 14px 14px;
+    transition: border-color 0.15s, background-color 0.15s, flex-basis 0.15s;
+}
+
+.gallery-folder-input:focus {
+    flex-basis: 220px;
+    border-color: var(--SmartThemeQuoteColor) !important;
+    background-color: var(--black50a) !important;
 }
 
 .gallery-folder-input:placeholder-shown {
     font-style: italic;
-    opacity: 0.5;
-    border-color: transparent;
+    opacity: 0.55;
 }
+
+/* ── Sort select ───────────────────────────────────────────────────────── */
 
 .gallery-sort-select {
     width: max-content;
-    flex: 1;
+    max-width: 130px;
+    flex-shrink: 1;
     cursor: pointer;
     overflow-x: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    width: 100%;
-    opacity: 0.8;
+    opacity: 0.9;
     background-color: var(--black30a);
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
     background-image: url(/img/down-arrow.svg);
     background-repeat: no-repeat;
-    background-position: right 6px center;
+    background-position: right 10px center;
     background-size: 8px 5px;
-    padding-right: 20px;
+    padding: 3px 22px 3px 12px;
     margin-bottom: 0;
+    font-size: calc(var(--mainFontSize) * 0.88);
+    transition: border-color 0.15s;
 }
+
+.gallery-sort-select:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+/* ── Misc gallery panel tweaks ─────────────────────────────────────────── */
 
 #gallery .dragTitle {
     margin-right: 30px;
 }
 
 #dragGallery {
-    min-height: 25dvh;
+    min-height: 50dvh;
+    max-height: 75dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-radius: 0 0 14px 14px;
+    padding: 4px;
 }
 
 #gallery .right_menu_button.warning {
@@ -52,4 +175,526 @@
 
 .galleryImageDraggable video {
     width: 100%;
+}
+
+/* Thumbnails: rounder corners + subtle hover lift, applied on top of
+   nanogallery2's own generated elements. Gap/size itself is controlled via
+   the thumbnailHeight option in initNanogallery(), but the visual polish
+   (radius, hover scale, shadow) is layered on here. */
+#dragGallery .nGY2GThumbnail {
+    border-radius: 10px !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+#dragGallery .nGY2GThumbnail:hover {
+    transform: scale(1.045);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    z-index: 2;
+}
+
+/* ── Pagination polish ────────────────────────────────────────────────────
+   nanogallery2 generates its own pagination markup at runtime; exact class
+   names can vary by version, so we target broadly via attribute wildcards
+   AND include a few of nanogallery2's documented class names directly.
+   galleryPaginationMode: 'rectangle' in initNanogallery() produces numbered
+   page buttons (the 's' in the old 'rectangles' value was a typo that broke
+   this mode entirely). These rules make the buttons big, round, and legible. */
+#dragGallery [class*='Pagination'],
+#dragGallery .nGY2GalleryBottom {
+    padding: 14px 0 10px;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#dragGallery [class*='Pagination'] a,
+#dragGallery [class*='Pagination'] li,
+#dragGallery [class*='Pagination'] span,
+#dragGallery [class*='Pagination'] div[class*='item'],
+#dragGallery .nGY2GPaginationItem,
+#dragGallery .nGY2GPaginationPage {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    border-radius: 999px !important;
+    margin: 0 !important;
+    background: var(--black30a) !important;
+    color: var(--SmartThemeBodyColor) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+#dragGallery [class*='Pagination'] a:hover,
+#dragGallery .nGY2GPaginationItem:hover,
+#dragGallery .nGY2GPaginationPage:hover {
+    transform: translateY(-1px) scale(1.08);
+    background: var(--black50a) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Current/active page — filled with the theme accent color */
+#dragGallery [class*='Pagination'] .nGY2GPaginationCurrentPage,
+#dragGallery [class*='Pagination'] [class*='current'],
+#dragGallery [class*='Pagination'] [class*='Current'],
+#dragGallery [class*='Pagination'] .active {
+    background: var(--SmartThemeQuoteColor) !important;
+    color: #fff !important;
+    border-color: var(--SmartThemeQuoteColor) !important;
+    box-shadow: 0 0 14px -2px var(--SmartThemeQuoteColor);
+}
+
+/* ── Tag filter strip ──────────────────────────────────────────────────── */
+
+.gallery-tag-filter-strip {
+    display: none;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: transparent;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.gallery-tag-filter-strip::-webkit-scrollbar {
+    height: 6px;
+}
+
+.gallery-tag-filter-strip::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gallery-tag-filter-strip::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+}
+
+.gallery-tag-filter-strip::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.gallery-filter-chip {
+    flex-shrink: 0;
+}
+
+.gallery-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--black30a);
+    color: var(--SmartThemeBodyColor);
+    font-size: calc(var(--mainFontSize) * 0.82);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+
+.gallery-filter-chip:hover {
+    background: var(--black50a);
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.gallery-filter-chip.active {
+    background: var(--SmartThemeQuoteColor);
+    border-color: var(--SmartThemeQuoteColor);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 0 12px -2px var(--SmartThemeQuoteColor);
+}
+
+/* ── Thumbnail tag badge ───────────────────────────────────────────────── */
+
+.gallery-thumb-tag-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    line-height: 1.5;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   LIGHTBOX  —  contained-box model (image never escapes the card)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Backdrop */
+.gallery-lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: rgba(0, 0, 0, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-sizing: border-box;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.gallery-lightbox-overlay.gallery-lightbox-visible {
+    opacity: 1;
+}
+
+/* Centered container card */
+.gallery-lb-container {
+    position: relative;
+    width: 92vw;
+    max-width: 980px;
+    height: 85dvh;
+    max-height: 85dvh;
+    background: #1a1a2e;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1000000;
+    box-sizing: border-box;
+}
+
+/* Close button — position absolute inside container, top-right corner.
+   Matches the background extension pattern exactly. */
+.gallery-lb-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.gallery-lb-close-btn:hover {
+    background: rgba(200, 50, 50, 0.8);
+}
+
+/* Pan/zoom area — overflow:hidden is the key constraint */
+.gallery-lb-scroll-area {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+    touch-action: none;
+}
+
+.gallery-lb-scroll-area.gallery-lb-dragging {
+    cursor: grabbing;
+}
+
+/* Image: position absolute, centered; transform moves it around */
+.gallery-lb-media {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    /* default: translate(-50%,-50%) + scale(1) = centered, fit */
+    transform: translate(-50%, -50%) scale(1);
+    transform-origin: center center;
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;    /* image itself doesn't catch mouse; scroll-area does */
+    will-change: transform;
+}
+
+video.gallery-lb-media {
+    pointer-events: auto;    /* video needs pointer events for controls */
+    max-width: 92%;
+    max-height: 92%;
+}
+
+/* Zoom controls bar at bottom */
+.gallery-lb-zoom-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.gallery-lb-zoom-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
+}
+
+.gallery-lb-zoom-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.gallery-lb-zoom-label {
+    color: #ccc;
+    font-size: 13px;
+    min-width: 46px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Hint line */
+.gallery-lb-hint {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 3px 0 2px;
+    text-align: center;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Tag editor panel ─────────────────────────────────────────────────── */
+
+/* Used both inside lightbox container and as floating popover */
+.gallery-tag-editor {
+    background: rgba(18, 18, 30, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 220px;
+    max-width: 300px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* When inside lightbox container, sit over the zoom bar */
+    position: absolute;
+    bottom: 56px;   /* just above zoom bar */
+    right: 14px;
+    z-index: 10001;
+}
+
+/* When used as a floating popover anchored via fixed positioning */
+.gallery-tag-popover {
+    position: fixed !important;
+    bottom: unset !important;
+    right: unset !important;
+}
+
+/* The inner editor panel resets its absolute offset when inside a popover */
+.gallery-tag-popover > .gallery-tag-editor {
+    position: relative !important;
+    bottom: unset !important;
+    right: unset !important;
+    top: unset !important;
+    left: unset !important;
+}
+
+.gallery-tag-editor-titlerow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.gallery-tag-editor-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.gallery-tag-editor-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+
+.gallery-tag-editor-close:hover {
+    color: rgba(255, 120, 120, 0.9);
+}
+
+.gallery-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-height: 22px;
+}
+
+.gallery-tag-empty {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+}
+
+.gallery-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px 2px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.gallery-tag-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 2px;
+    transition: background 0.1s;
+}
+
+.gallery-tag-chip-remove:hover {
+    background: rgba(200, 60, 60, 0.6);
+    color: #fff;
+}
+
+.gallery-tag-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.gallery-tag-input {
+    flex: 1;
+    font-size: calc(var(--mainFontSize) * 0.88) !important;
+    padding: 3px 8px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    min-width: 0;
+}
+
+.gallery-tag-input::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+    font-style: italic;
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+    .gallery-lb-container {
+        width: 96vw;
+        height: 88dvh;
+        max-height: 88dvh;
+        border-radius: 10px;
+    }
+
+    .gallery-lb-zoom-bar {
+        padding: 5px 10px;
+        gap: 6px;
+    }
+
+    .gallery-lb-zoom-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 16px;
+    }
+
+    .gallery-tag-editor {
+        right: 8px;
+        bottom: 50px;
+        max-width: calc(96vw - 16px);
+    }
+
+    .gallery-panel-title {
+        font-size: var(--mainFontSize);
+    }
+
+    /* Folder bar icons: still bigger/more spaced than the original, but
+       scaled back from desktop so the right-aligned group can't clip off
+       the edge of small screens. Input is allowed to shrink further to
+       make room. */
+    .gallery-folder-input {
+        flex: 0 1 90px;
+        min-width: 60px;
+    }
+
+    .gallery-folder-input:focus {
+        flex-basis: 140px;
+    }
+
+    .gallery-folder-bar {
+        gap: 4px;
+        overflow-x: auto; /* safety net: scroll instead of hard-clip if it's ever too tight */
+    }
+
+    .gallery-folder-bar > .right_menu_button {
+        font-size: 16px;
+        width: 30px;
+        height: 30px;
+    }
+
+    .gallery-folder-bar > .right_menu_button + .right_menu_button {
+        margin-left: 4px;
+    }
 }

@@ -48,6 +48,13 @@ import { oai_settings } from '../../openai.js';
  */
 
 const MODULE_NAME = 'vectors';
+window._rrm_saveSettings = saveSettingsDebounced; // expose for rerank-widget
+
+// ── Reset rerank monitor on chat change ──────────────────────────────
+eventSource.on(event_types.CHAT_CHANGED, () => {
+    window.dispatchEvent(new CustomEvent('rerank-monitor-reset'));
+});
+// ─────────────────────────────────────────────────────────────────────
 
 export const EXTENSION_PROMPT_TAG = '3_vectors';
 export const EXTENSION_PROMPT_TAG_DB = '4_vectors_data_bank';
@@ -679,14 +686,17 @@ async function injectDataBankChunks(queryText, collectionIds) {
     try {
         const queryResults = await queryMultipleCollections(collectionIds, queryText, settings.chunk_count_db, settings.score_threshold);
         console.debug(`Vectors: Retrieved ${collectionIds.length} Data Bank collections`, queryResults);
+        // RERANK START
+        const allDbChunks = Object.values(queryResults).flatMap(r => r.metadata?.filter(x => x.text)?.map(x => x.text) || []);
+        const rerankedDbChunks = await rerankWithCohere(queryText, allDbChunks);
+        // RERANK END
         let textResult = '';
-
         for (const collectionId in queryResults) {
             console.debug(`Vectors: Processing Data Bank collection ${collectionId}`, queryResults[collectionId]);
             const metadata = queryResults[collectionId].metadata?.filter(x => x.text)?.sort((a, b) => a.index - b.index)?.map(x => x.text)?.filter(onlyUnique) || [];
             textResult += metadata.join('\n') + '\n\n';
         }
-
+        textResult = rerankedDbChunks.join('\n') + '\n\n';
         if (!textResult) {
             console.debug('Vectors: No Data Bank chunks found');
             return;
@@ -710,8 +720,10 @@ async function retrieveFileChunks(queryText, collectionId) {
     const queryResults = await queryCollection(collectionId, queryText, settings.chunk_count);
     console.debug(`Vectors: Retrieved ${queryResults.hashes.length} file chunks for collection ${collectionId}`, queryResults);
     const metadata = queryResults.metadata.filter(x => x.text).sort((a, b) => a.index - b.index).map(x => x.text).filter(onlyUnique);
-    const fileText = metadata.join('\n');
-
+    // RERANK START
+    const rerankedMetadata = await rerankWithCohere(queryText, metadata);
+    const fileText = rerankedMetadata.join('\n');
+    // RERANK END
     return fileText;
 }
 
@@ -832,10 +844,24 @@ async function rearrangeChat(chat, _contextSize, _abort, type) {
                 insertedHashes.add(hash);
             }
         }
+        console.log("[RERANK DEBUG] queryHashes: " + queryHashes.length + ", queriedMessages after loop: " + queriedMessages.length);
 
         // Rearrange queried messages to match query order
         // Order is reversed because more relevant are at the lower indices
         queriedMessages.sort((a, b) => queryHashes.indexOf(getStringHash(substituteParams(b.mes))) - queryHashes.indexOf(getStringHash(substituteParams(a.mes))));
+
+        // RERANK START
+        console.log("[RERANK DEBUG] queriedMessages count: " + queriedMessages.length);
+        if (queriedMessages.length >= 1) {
+            const messageTexts = queriedMessages.map(m => m.mes || "");
+            console.log("[RERANK DEBUG] Calling rerankWithCohere, messages: " + messageTexts.length + ", query: " + queryText.substring(0,80));
+            const rerankedTexts = await rerankWithCohere(queryText, messageTexts);
+            const rerankedMessages = rerankedTexts.map(text => queriedMessages.find(m => m.mes === text)).filter(Boolean);
+            if (rerankedMessages.length > 0) {
+                queriedMessages.splice(0, queriedMessages.length, ...rerankedMessages);
+            }
+        }
+        // RERANK END
 
         // Remove queried messages from the original chat array
         for (const message of chat) {
@@ -1620,6 +1646,70 @@ async function onPurgeFilesClick() {
     }
 }
 
+// ===================== RERANKER MODEL =====================
+async function rerankWithCohere(query, chunks) {
+    console.log('Vectors: rerankWithCohere called with', chunks.length, 'chunks');
+    try {
+        // Read config from Rerank Monitor widget settings
+        const cfg     = window.rrmConfig || {};
+        const apiBase = (cfg.apiBase || 'https://api.cohere.com/v2').replace(/\/$/, '');
+        const apiKey  = cfg.apiKey  || '';
+        const model   = cfg.model   || 'rerank-v4.0-pro';
+        const topN    = cfg.topN    || 5;
+	const scoreThreshold = cfg.scoreThreshold || 0;
+
+        if (!apiKey) {
+            console.warn('Vectors: No API key set in Rerank Monitor settings, skipping rerank');
+            return chunks;
+        }
+
+        const response = await fetch(`${apiBase}/rerank`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model:            model,
+                query:            query,
+                documents:        chunks.map(c => typeof c === 'string' ? c : c.text),
+                top_n:            Math.min(chunks.length, topN),
+                return_documents: true,
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.warn('Vectors: Rerank API failed:', err);
+            return chunks;
+        }
+
+        const data     = await response.json();
+        const reranked = data.results
+    .filter(r => (r.relevance_score ?? 0) >= scoreThreshold)
+    .map(r => chunks[r.index])
+    .filter(Boolean);
+        console.log(`Vectors: Reranked ${reranked.length} chunks`);
+
+        window.dispatchEvent(new CustomEvent('rerank-monitor-update', {
+            detail: {
+                candidates: chunks.length,
+                results: data.results.map((r, i) => ({
+                    title: `Entry ${i + 1}`,
+                    score: r.relevance_score ?? 0,
+                    index: r.index,
+                })).slice(0, topN),
+            }
+        }));
+
+        return reranked;
+    } catch (error) {
+        console.warn('Vectors: Rerank error, using original order:', error);
+        return chunks;
+    }
+}
+// ===========================================================
+
 async function activateWorldInfo(chat) {
     if (!settings.enabled_world_info) {
         console.debug('Vectors: Disabled for World Info');
@@ -1704,7 +1794,22 @@ async function activateWorldInfo(chat) {
     }
 
     const queryResults = await queryMultipleCollections(collectionIds, queryText, settings.max_entries, settings.score_threshold);
-    const activatedHashes = Object.values(queryResults).flatMap(x => x.hashes).filter(onlyUnique);
+
+    // RERANK START — rerank WI entries by relevance using Cohere
+    const allWiEntries = Object.values(queryResults).flatMap(r => r.metadata?.filter(x => x.text)?.map(x => x.text) || []);
+    console.log("[RERANK DEBUG] WI entries before rerank: " + allWiEntries.length);
+    const rerankedWiTexts = await rerankWithCohere(queryText, allWiEntries);
+    console.log("[RERANK DEBUG] WI entries after rerank: " + rerankedWiTexts.length);
+    // Build a set of reranked content strings for hash lookup
+    const rerankedWiSet = new Set(rerankedWiTexts);
+    // RERANK END
+
+    const activatedHashes = Object.values(queryResults).flatMap(x => x.hashes).filter(onlyUnique)
+        .filter(hash => {
+            // Only keep hashes whose content was kept by the reranker
+            const entry = entries.find(e => getStringHash(e.content) === hash);
+            return entry && rerankedWiSet.has(entry.content);
+        });
     const activatedEntries = [];
 
     // Activate entries found in the query results

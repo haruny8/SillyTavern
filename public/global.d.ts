@@ -101,6 +101,8 @@ declare global {
         title?: string;
         isSmallSys?: boolean;
         token_count?: number;
+        reasoning_token_count?: number;
+        response_token_count?: number;
         /** When false, the message cannot be swiped. */
         swipeable?: boolean;
         overswipe_behavior?: OVERSWIPE_BEHAVIOR;

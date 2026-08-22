@@ -625,6 +625,35 @@ input[type='checkbox']:focus-visible {
     text-align: center;
 }
 
+.mes .tokenCounterDisplay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    line-height: 1.15;
+}
+
+.mes .tokenCounterTotal,
+.mes .tokenCounterReasoning {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.mes .tokenCounterTotal {
+    color: color-mix(in srgb, var(--SmartThemeBodyColor) 86%, #ffffff 14%);
+}
+
+.mes .tokenCounterReasoning {
+    color: color-mix(in srgb, var(--SmartThemeBodyColor) 68%, #bda7ff 32%);
+    font-size: 0.88em;
+}
+
+.mes .tokenCounterReasoningHidden {
+    display: none !important;
+}
+
 .mes_translate,
 .sd_message_gen,
 .mes_ghost,

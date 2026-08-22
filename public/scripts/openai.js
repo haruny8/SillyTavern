@@ -7029,18 +7029,18 @@ export function initOpenAI() {
         saveSettingsDebounced();
     });
 
-    $('#openai_show_thoughts').on('input', function () {
+    $('#openai_show_thoughts').on('input change', function () {
         oai_settings.show_thoughts = !!$(this).prop('checked');
         setToolReasoningControls();
         saveSettingsDebounced();
     });
 
-    $('#openai_reasoning_effort').on('input', function () {
+    $('#openai_reasoning_effort').on('input change', function () {
         oai_settings.reasoning_effort = String($(this).val());
         saveSettingsDebounced();
     });
 
-    $('#openai_verbosity').on('input', function () {
+    $('#openai_verbosity').on('input change', function () {
         oai_settings.verbosity = String($(this).val());
         saveSettingsDebounced();
     });
