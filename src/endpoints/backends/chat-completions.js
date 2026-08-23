@@ -96,6 +96,45 @@ const API_OPENROUTER = 'https://openrouter.ai/api/v1';
 const API_WORKERS_AI = 'https://api.cloudflare.com/client/v4/accounts';
 
 /**
+ * Expands escaped newlines produced by `util.inspect` while preserving literal
+ * backslash-n sequences from the original string.
+ * @param {string} inspected Colorized object representation
+ * @returns {string} Object representation with visible line breaks
+ */
+function expandInspectedNewlines(inspected) {
+    return inspected.replace(/(\\+)n/g, (match, slashes) => {
+        if (slashes.length % 2 === 0) {
+            return match;
+        }
+
+        return `${'\\'.repeat((slashes.length - 1) / 2)}\n`;
+    });
+}
+
+/**
+ * Bun escapes newlines in strings nested inside logged objects. Use the Node
+ * object inspector under Bun and expand only the inspected newline escapes.
+ * @param {string} label Request log label
+ * @param {Record<string, any>} requestBody Chat completion request or response body
+ */
+function logChatCompletionRequest(label, requestBody) {
+    if (!process.versions.bun) {
+        console.debug(label, requestBody);
+        return;
+    }
+
+    const inspected = util.inspect(requestBody, {
+        colors: true,
+        breakLength: Infinity,
+        compact: false,
+        depth: null,
+        maxArrayLength: null,
+        maxStringLength: null,
+    });
+    console.debug(label, expandInspectedNewlines(inspected));
+}
+
+/**
  * Module-scoped Claude caching configuration values.
  */
 const cacheTTL = getConfigValue('claude.extendedTTL', false, 'boolean') ? '1h' : '5m';
@@ -371,7 +410,7 @@ async function sendClaudeRequest(request, response) {
             additionalHeaders['anthropic-beta'] = betaHeaders.join(',');
         }
 
-        console.debug('Claude request:', requestBody);
+        logChatCompletionRequest('Claude request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/messages', {
             method: 'POST',
@@ -398,7 +437,7 @@ async function sendClaudeRequest(request, response) {
             /** @type {any} */
             const generateResponseJson = await generateResponse.json();
             const responseText = generateResponseJson?.content?.[0]?.text || '';
-            console.debug('Claude response:', generateResponseJson);
+            logChatCompletionRequest('Claude response:', generateResponseJson);
 
             // Wrap it back to OAI format + save the original content
             const reply = { choices: [{ 'message': { 'content': responseText } }], content: generateResponseJson.content };
@@ -624,7 +663,7 @@ async function sendMakerSuiteRequest(request, response) {
     }
 
     const body = getGeminiBody();
-    console.debug(`${apiName} request:`, body);
+    logChatCompletionRequest(`${apiName} request:`, body);
 
     try {
         const controller = new AbortController();
@@ -728,7 +767,7 @@ async function sendMakerSuiteRequest(request, response) {
             const responseContent = candidates[0].content ?? candidates[0].output;
             const functionCall = (candidates?.[0]?.content?.parts ?? []).some(part => part.functionCall);
             const inlineData = (candidates?.[0]?.content?.parts ?? []).some(part => part.inlineData);
-            console.debug(`${apiName} response:`, util.inspect(generateResponseJson, { depth: 5, colors: true }));
+            logChatCompletionRequest(`${apiName} response:`, generateResponseJson);
 
             const responseText = typeof responseContent === 'string' ? responseContent : responseContent?.parts?.filter(part => !part.thought)?.map(part => part.text)?.join('\n\n');
             if (!responseText && !functionCall && !inlineData) {
@@ -803,7 +842,7 @@ async function sendAI21Request(request, response) {
         signal: controller.signal,
     };
 
-    console.debug('AI21 request:', body);
+    logChatCompletionRequest('AI21 request:', body);
 
     try {
         const generateResponse = await fetch(API_AI21 + '/chat/completions', options);
@@ -817,7 +856,7 @@ async function sendAI21Request(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('AI21 response:', generateResponseJson);
+            logChatCompletionRequest('AI21 response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -894,7 +933,7 @@ async function sendMistralAIRequest(request, response) {
             timeout: 0,
         };
 
-        console.debug('MisralAI request:', requestBody);
+        logChatCompletionRequest('MistralAI request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
         if (request.body.stream) {
@@ -907,7 +946,7 @@ async function sendMistralAIRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('MistralAI response:', generateResponseJson);
+            logChatCompletionRequest('MistralAI response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -980,7 +1019,7 @@ async function sendCohereRequest(request, response) {
             };
         }
 
-        console.debug('Cohere request:', requestBody);
+        logChatCompletionRequest('Cohere request:', requestBody);
 
         const config = {
             method: 'POST',
@@ -1007,7 +1046,7 @@ async function sendCohereRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('Cohere response:', generateResponseJson);
+            logChatCompletionRequest('Cohere response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1105,7 +1144,7 @@ async function sendDeepSeekRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('DeepSeek request:', requestBody);
+        logChatCompletionRequest('DeepSeek request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1119,7 +1158,7 @@ async function sendDeepSeekRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('DeepSeek response:', generateResponseJson);
+            logChatCompletionRequest('DeepSeek response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1211,7 +1250,7 @@ async function sendXaiRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('xAI request:', requestBody);
+        logChatCompletionRequest('xAI request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1225,7 +1264,7 @@ async function sendXaiRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('xAI response:', generateResponseJson);
+            logChatCompletionRequest('xAI response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1316,7 +1355,7 @@ async function sendAimlapiRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('AI/ML API request:', requestBody);
+        logChatCompletionRequest('AI/ML API request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1330,7 +1369,7 @@ async function sendAimlapiRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('AI/ML API response:', generateResponseJson);
+            logChatCompletionRequest('AI/ML API response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1428,7 +1467,7 @@ async function sendElectronHubRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('Electron Hub request:', requestBody);
+        logChatCompletionRequest('Electron Hub request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1442,7 +1481,7 @@ async function sendElectronHubRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('Electron Hub response:', generateResponseJson);
+            logChatCompletionRequest('Electron Hub response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1529,7 +1568,7 @@ async function sendChutesRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('Chutes request:', requestBody);
+        logChatCompletionRequest('Chutes request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1543,7 +1582,7 @@ async function sendChutesRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('Chutes response:', generateResponseJson);
+            logChatCompletionRequest('Chutes response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1610,7 +1649,7 @@ async function sendMinimaxRequest(request, response) {
             signal: controller.signal,
         };
 
-        console.debug('MiniMax request:', requestBody);
+        logChatCompletionRequest('MiniMax request:', requestBody);
 
         const generateResponse = await fetch(apiUrl + '/chat/completions', config);
 
@@ -1624,7 +1663,7 @@ async function sendMinimaxRequest(request, response) {
                 return response.status(500).send(errorJson);
             }
             const generateResponseJson = await generateResponse.json();
-            console.debug('MiniMax response:', generateResponseJson);
+            logChatCompletionRequest('MiniMax response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
     } catch (error) {
@@ -1704,7 +1743,7 @@ async function sendAzureOpenAIRequest(request, response) {
     };
 
     console.info(`Sending request to Azure OpenAI: ${endpointUrl}`);
-    console.debug('Azure OpenAI Request Body:', apiRequestBody);
+    logChatCompletionRequest('Azure OpenAI Request Body:', apiRequestBody);
     try {
         const fetchResponse = await fetch(endpointUrl, config);
 
@@ -1715,7 +1754,7 @@ async function sendAzureOpenAIRequest(request, response) {
         if (fetchResponse.ok) {
             /** @type {any} */
             const json = await fetchResponse.json();
-            console.debug('Azure OpenAI response:', json);
+            logChatCompletionRequest('Azure OpenAI response:', json);
             return response.send(json);
         }
 
@@ -1912,7 +1951,7 @@ router.post('/status', async function (request, statusResponse) {
                 const modelId = /** @type {any} */ (modelResponse)?.model;
                 if (!modelId) {
                     console.warn('Azure status check succeeded but could not find a model ID in the response.');
-                    console.debug('Azure Response Body:', modelResponse);
+                    logChatCompletionRequest('Azure Response Body:', modelResponse);
                     // Keep a benign success to avoid UX disruption in the UI
                     return statusResponse.send({ data: [] });
                 }
@@ -2585,7 +2624,7 @@ router.post('/generate', async function (request, response) {
             signal: controller.signal,
         };
 
-        console.debug('Chat Completion request:', requestBody);
+        logChatCompletionRequest('Chat Completion request:', requestBody);
 
         const fetchResponse = await fetch(endpointUrl, config);
 
@@ -2597,7 +2636,7 @@ router.post('/generate', async function (request, response) {
         if (fetchResponse.ok) {
             /** @type {any} */
             const json = await fetchResponse.json();
-            console.debug('Chat Completion response:', json);
+            logChatCompletionRequest('Chat Completion response:', json);
             return response.send(json);
         } else {
             const responseText = await fetchResponse.text();
