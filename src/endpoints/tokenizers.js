@@ -209,6 +209,16 @@ class WebTokenizer {
      */
     #instance;
     /**
+     * Whether loading has already failed during this server session.
+     * @type {boolean}
+     */
+    #loadFailed = false;
+    /**
+     * Whether repeated load failures should be suppressed.
+     * @type {boolean}
+     */
+    #suppressRepeatedLoadErrors;
+    /**
      * @type {string} Path to the tokenizer model
      */
     #model;
@@ -221,10 +231,12 @@ class WebTokenizer {
      * Creates a new Web tokenizer.
      * @param {string} model Path to the tokenizer model
      * @param {string} [fallbackModel] Path to the fallback model
+     * @param {boolean} [suppressRepeatedLoadErrors] Suppress repeated load errors
      */
-    constructor(model, fallbackModel) {
+    constructor(model, fallbackModel, suppressRepeatedLoadErrors = false) {
         this.#model = model;
         this.#fallbackModel = fallbackModel;
+        this.#suppressRepeatedLoadErrors = suppressRepeatedLoadErrors;
     }
 
     /**
@@ -243,9 +255,20 @@ class WebTokenizer {
             console.info('Instantiated the tokenizer for', path.parse(pathToModel).name);
             return this.#instance;
         } catch (error) {
-            console.error('Web tokenizer failed to load: ' + this.#model, error);
+            if (!this.#suppressRepeatedLoadErrors || !this.#loadFailed) {
+                this.#loadFailed = true;
+                console.error('Web tokenizer failed to load: ' + this.#model, error);
+            }
             return null;
         }
+    }
+
+    /**
+     * Whether handler-level load errors should be suppressed after the loader diagnostic.
+     * @returns {boolean} Whether repeated load errors should be suppressed
+     */
+    shouldSuppressRepeatedLoadErrors() {
+        return this.#suppressRepeatedLoadErrors;
     }
 }
 
@@ -256,7 +279,7 @@ const spp_mistral = new SentencePieceTokenizer('src/tokenizers/mistral.model');
 const spp_yi = new SentencePieceTokenizer('src/tokenizers/yi.model');
 const spp_gemma = new SentencePieceTokenizer('src/tokenizers/gemma.model');
 const spp_jamba = new SentencePieceTokenizer('src/tokenizers/jamba.model');
-const claude_tokenizer = new WebTokenizer('src/tokenizers/claude.json');
+const claude_tokenizer = new WebTokenizer('src/tokenizers/claude.json', undefined, true);
 const llama3_tokenizer = new WebTokenizer('src/tokenizers/llama3.json');
 const commandRTokenizer = new WebTokenizer('https://github.com/SillyTavern/SillyTavern-Tokenizers/raw/main/command-r.json.gz', 'src/tokenizers/llama3.json');
 const commandATokenizer = new WebTokenizer('https://github.com/SillyTavern/SillyTavern-Tokenizers/raw/main/command-a.json.gz', 'src/tokenizers/llama3.json');
@@ -694,7 +717,12 @@ function createWebTokenizerEncodingHandler(tokenizer) {
 
             const text = request.body.text || '';
             const instance = await tokenizer?.get();
-            if (!instance) throw new Error('Failed to load the Web tokenizer');
+            if (!instance) {
+                if (tokenizer?.shouldSuppressRepeatedLoadErrors()) {
+                    return response.send({ ids: [], count: 0, chunks: [] });
+                }
+                throw new Error('Failed to load the Web tokenizer');
+            }
             const tokens = Array.from(instance.encode(text));
             const chunks = getWebTokenizersChunks(instance, tokens);
             return response.send({ ids: tokens, count: tokens.length, chunks });
@@ -725,7 +753,12 @@ function createWebTokenizerDecodingHandler(tokenizer) {
 
             const ids = request.body.ids || [];
             const instance = await tokenizer?.get();
-            if (!instance) throw new Error('Failed to load the Web tokenizer');
+            if (!instance) {
+                if (tokenizer?.shouldSuppressRepeatedLoadErrors()) {
+                    return response.send({ text: '', chunks: [] });
+                }
+                throw new Error('Failed to load the Web tokenizer');
+            }
             const chunks = getWebTokenizersChunks(instance, ids);
             const text = instance.decode(new Int32Array(ids));
             return response.send({ text, chunks });
@@ -925,7 +958,11 @@ router.post('/openai/count', async function (req, res) {
 
         if (model === 'claude') {
             const instance = await claude_tokenizer.get();
-            if (!instance) throw new Error('Failed to load the Claude tokenizer');
+            if (!instance) {
+                const jsonBody = JSON.stringify(req.body);
+                const num_tokens = guesstimate(jsonBody);
+                return res.send({ 'token_count': num_tokens });
+            }
             num_tokens = countWebTokenizerTokens(instance, req.body);
             return res.send({ 'token_count': num_tokens });
         }
