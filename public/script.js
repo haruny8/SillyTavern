@@ -255,7 +255,7 @@ import { POPUP_RESULT, POPUP_TYPE, Popup, callGenericPopup, fixToastrForDialogs 
 import { renderTemplate, renderTemplateAsync } from './scripts/templates.js';
 import { initScrapers } from './scripts/scrapers.js';
 import { initCustomSelectedSamplers, validateDisabledSamplers } from './scripts/samplerSelect.js';
-import { DragAndDropHandler } from './scripts/dragdrop.js';
+import { DragAndDropHandler, INTERNAL_AVATAR_DRAG_MIME_TYPE } from './scripts/dragdrop.js';
 import { INTERACTABLE_CONTROL_CLASS, initKeyboard } from './scripts/keyboard.js';
 import { initDynamicStyles } from './scripts/dynamic-styles.js';
 import { initInputMarkdown } from './scripts/input-md-formatting.js';
@@ -944,7 +944,23 @@ function getCharacterBlock(item, id) {
     // Populate the template
     const template = $('#character_template .character_select').clone();
     template.attr({ 'data-chid': id, 'id': `CharID${id}` });
-    template.find('img').attr('src', this_avatar).attr('alt', item.name);
+    const avatarImage = template.find('img').attr('src', this_avatar).attr('alt', item.name)[0];
+    avatarImage.draggable = true;
+    avatarImage.addEventListener('pointerdown', () => {
+        template.removeAttr('data-avatar-dragged');
+    });
+    template[0].addEventListener('pointerdown', event => {
+        if (event.target !== avatarImage) {
+            template.removeAttr('data-avatar-dragged');
+        }
+    });
+    avatarImage.addEventListener('dragstart', event => {
+        template.attr('data-avatar-dragged', 'true');
+        event.dataTransfer?.setData(INTERNAL_AVATAR_DRAG_MIME_TYPE, 'true');
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'copy';
+        }
+    });
     template.find('.avatar').attr('title', `[Character] ${item.name}\nFile: ${item.avatar}`);
     template.find('.ch_name').text(item.name).attr('title', `[Character] ${item.name}`);
     if (power_user.show_card_avatar_urls) {
@@ -1898,7 +1914,7 @@ export function messageFormatting(mes, ch_name, isSystem, isUser, messageId, san
         }
 
         mes = mes.replace(
-            /<style>[\s\S]*?<\/style>|```[\s\S]*?```|~~~[\s\S]*?~~~|``[\s\S]*?``|`[\s\S]*?`|(".*?")|(\u201C.*?\u201D)|(\u00AB.*?\u00BB)|(\u300C.*?\u300D)|(\u300E.*?\u300F)|(\uFF02.*?\uFF02)/gim,
+            /<code\b[^>]*>[\s\S]*?<\/code>|<pre\b[^>]*>[\s\S]*?<\/pre>|<style\b[^>]*>[\s\S]*?<\/style>|<script\b[^>]*>[\s\S]*?<\/script>|```[\s\S]*?```|~~~[\s\S]*?~~~|``[\s\S]*?``|`[\s\S]*?`|("(?:(?!<\/p\s*>)[^"\r\n])*?")|(\u201C(?:(?!<\/p\s*>)[^\r\n])*?\u201D)|(\u00AB(?:(?!<\/p\s*>)[^\r\n])*?\u00BB)|(\u300C(?:(?!<\/p\s*>)[^\r\n])*?\u300D)|(\u300E(?:(?!<\/p\s*>)[^\r\n])*?\u300F)|(\uFF02(?:(?!<\/p\s*>)[^\r\n])*?\uFF02)/gim,
             function (match, p1, p2, p3, p4, p5, p6) {
                 if (p1) {
                     // English double quotes
@@ -1933,6 +1949,26 @@ export function messageFormatting(mes, ch_name, isSystem, isUser, messageId, san
         mes = mes.replaceAll('\\begin{align*}', '$$');
         mes = mes.replaceAll('\\end{align*}', '$$');
         mes = converter.makeHtml(mes);
+
+        // Legacy display text may already contain inline HTML before formatting.
+        if (/<(?:em|strong|i|b|u|s|span)\b[^>]*>/i.test(mes) && /"[^"\r\n]*<[^>]+>[^"\r\n]*"/i.test(mes)) {
+            const protectedBlocks = [];
+            mes = mes.replace(/<(?:q|code|pre|style|script)\b[^>]*>[\s\S]*?<\/(?:q|code|pre|style|script)>/gim, (match) => {
+                protectedBlocks.push(match);
+                return `\u0001${protectedBlocks.length - 1}\u0001`;
+            });
+            const protectedTags = [];
+            mes = mes.replace(/<[^>]+>/g, (match) => {
+                protectedTags.push(match);
+                return `\u0002${protectedTags.length - 1}\u0002`;
+            });
+            mes = mes.replace(
+                /("(?:[^"\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?")|(\u201C(?:[^\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?\u201D)|(\u00AB(?:[^\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?\u00BB)|(\u300C(?:[^\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?\u300D)|(\u300E(?:[^\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?\u300F)|(\uFF02(?:[^\r\n]|\u0001\d+\u0001|\u0002\d+\u0002)*?\uFF02)/gim,
+                (match) => `<q>${match}</q>`,
+            );
+            mes = mes.replace(/\u0002(\d+)\u0002/g, (_, index) => protectedTags[index]);
+            mes = mes.replace(/\u0001(\d+)\u0001/g, (_, index) => protectedBlocks[index]);
+        }
 
         mes = mes.replace(/<code(.*)>[\s\S]*?<\/code>/g, function (match) {
             // Firefox creates extra newlines from <br>s in code blocks, so we replace them before converting newlines to <br>s.
@@ -11273,6 +11309,11 @@ jQuery(async function () {
     });
 
     $(document).on('click', '.character_select', async function () {
+        if ($(this).attr('data-avatar-dragged') === 'true') {
+            $(this).removeAttr('data-avatar-dragged');
+            return;
+        }
+
         const id = Number($(this).attr('data-chid'));
         await selectCharacterById(id);
     });

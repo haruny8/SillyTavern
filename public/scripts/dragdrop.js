@@ -1,5 +1,38 @@
 import { debounce_timeout } from './constants.js';
 
+export const INTERNAL_AVATAR_DRAG_MIME_TYPE = 'application/x-sillytavern-avatar';
+
+let internalAvatarDragInProgress = false;
+
+document.addEventListener('dragstart', event => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest('.avatar img')) {
+        return;
+    }
+
+    internalAvatarDragInProgress = true;
+    event.dataTransfer?.setData(INTERNAL_AVATAR_DRAG_MIME_TYPE, 'true');
+}, true);
+
+document.addEventListener('dragend', event => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest('.avatar img')) {
+        return;
+    }
+
+    internalAvatarDragInProgress = false;
+}, true);
+
+document.addEventListener('drop', event => {
+    if (!internalAvatarDragInProgress) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    internalAvatarDragInProgress = false;
+}, true);
+
 /**
  * Drag and drop handler
  *
@@ -100,6 +133,11 @@ export class DragAndDropHandler {
         event.stopPropagation();
         clearTimeout(this.dragLeaveTimeout);
         $(this.selector).removeClass('dragover');
+
+        if (internalAvatarDragInProgress || Array.from(event.originalEvent.dataTransfer.types).includes(INTERNAL_AVATAR_DRAG_MIME_TYPE)) {
+            internalAvatarDragInProgress = false;
+            return;
+        }
 
         const files = Array.from(event.originalEvent.dataTransfer.files);
         this.onDropCallback(files, event);
