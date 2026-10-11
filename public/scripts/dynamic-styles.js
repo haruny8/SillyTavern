@@ -42,6 +42,21 @@ function applyDynamicFocusStyles(styleSheet, { fromExtension = false } = {}) {
     const PLACEHOLDER = ':__PLACEHOLDER__';
 
     /**
+     * @param {CSSStyleSheet | null} sheet
+     * @returns {CSSRuleList | null}
+     */
+    function getStylesheetRules(sheet) {
+        try {
+            return sheet?.cssRules ?? null;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'SecurityError') {
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    /**
      * Builds a stable signature string for a chain of wrapper conditions so we can distinguish
      * identical selectors under different contexts (e.g., different @media queries)
      * @param {WrapperCond[]} wrappers
@@ -99,16 +114,21 @@ function applyDynamicFocusStyles(styleSheet, { fromExtension = false } = {}) {
 
     /**
      * Processes the CSS rules of an imported stylesheet recursively
-     * @param {CSSStyleSheet} sheet - The imported stylesheet to process
+    * @param {CSSStyleSheet | null} sheet - The imported stylesheet to process
      * @param {WrapperCond[]} wrappers - Wrapper conditions inherited from (at)import media
      */
     function processImportedStylesheet(sheet, wrappers = []) {
-        if (sheet && sheet.cssRules) {
-            processRules(sheet.cssRules, wrappers);
+        const rules = getStylesheetRules(sheet);
+        if (rules) {
+            processRules(rules, wrappers);
         }
     }
 
-    processRules(styleSheet.cssRules, []);
+    const rules = getStylesheetRules(styleSheet);
+    if (!rules) {
+        return;
+    }
+    processRules(rules, []);
 
     /** @type {CSSStyleSheet} */
     let targetStyleSheet = null;
