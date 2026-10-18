@@ -40,6 +40,10 @@ body.hideChatAvatars .welcomePanel .recentChatList .recentChat .avatar {
     justify-content: flex-end;
 }
 
+.welcomePanel .welcomeHeader > * {
+    flex-shrink: 0 !important;
+}
+
 .welcomePanel .recentChatsTitle {
     flex-grow: 1;
     font-size: calc(var(--mainFontSize) * 1.15);
@@ -71,8 +75,8 @@ body.hideChatAvatars .welcomePanel .recentChatList .recentChat .avatar {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    gap: 5px;
+    justify-content: right;
+    gap: 2px;
 }
 
 .welcomePanel .welcomeShortcuts .welcomeShortcutsSeparator {
