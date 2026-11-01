@@ -1508,6 +1508,8 @@ export function flattenSchema(schema, api) {
 
 /**
  * Writes to a file, creating it's parent directories if needed.
+ * Retries transient EPERM/EBUSY errors on Windows, where the atomic rename
+ * can fail if another process (e.g. antivirus) briefly holds the target file.
  * @param {string} filePath
  * @param {string} data
  */
@@ -1517,7 +1519,22 @@ export function tryWriteFileSync(filePath, data) {
     if (!fs.existsSync(directory)) {
         fs.mkdirSync(directory, { recursive: true });
     }
-    writeFileAtomicSync(filePath, data, 'utf8');
+    const maxAttempts = 5;
+    for (let attempt = 1; ; attempt++) {
+        try {
+            writeFileAtomicSync(filePath, data, 'utf8');
+            return;
+        } catch (error) {
+            if ((error.code === 'EPERM' || error.code === 'EBUSY') && attempt < maxAttempts) {
+                const waitMs = 50 * attempt;
+                const waitUntil = Date.now() + waitMs;
+                // Synchronous context: short busy-wait is acceptable here.
+                while (Date.now() < waitUntil);
+                continue;
+            }
+            throw error;
+        }
+    }
 }
 
 /**

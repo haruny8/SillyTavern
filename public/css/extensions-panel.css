@@ -11,6 +11,8 @@
 .extensions_block input[type="radio"] {
     margin-left: 10px;
     margin-right: 10px;
+    margin-top: 12px;
+    margin-bottom: 5px;
 }
 
 label[for="extensions_autoconnect"] {
