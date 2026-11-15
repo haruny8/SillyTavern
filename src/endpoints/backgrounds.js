@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import sanitize from 'sanitize-filename';
 
-import { invalidateThumbnail } from './thumbnails.js';
+import { generateThumbnail, invalidateThumbnail } from './thumbnails.js';
 import { thumbnailDimensions, readMetadataIndex, renameMetadata, removeMetadata, getOrGenerateMetadataBatch } from './image-metadata.js';
 import { getImages } from '../util.js';
 import { getFileNameValidationFunction } from '../middleware/validateFileName.js';
@@ -141,6 +141,7 @@ router.post('/upload', async function (request, response) {
         fs.copyFileSync(img_path, path.join(request.user.directories.backgrounds, filename));
         fs.unlinkSync(img_path);
         invalidateThumbnail(request.user.directories, 'bg', filename);
+        await generateThumbnail(request.user.directories, 'bg', filename, true);
 
         // Generate metadata for the new image
         const relativePath = path.join('backgrounds', filename);

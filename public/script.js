@@ -11088,6 +11088,10 @@ export async function doNavbarIconClick() {
         icon.toggleClass('openIcon closedIcon');
         drawer.toggleClass('openDrawer closedDrawer');
 
+        if (targetDrawerID === 'Backgrounds') {
+            await getBackgrounds();
+        }
+
         if (targetDrawerID === 'right-nav-panel') {
             favsToHotswap();
             $('#rm_print_characters_block').trigger('scroll');

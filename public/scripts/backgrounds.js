@@ -24,6 +24,8 @@ let activeFolderId = null;
 const selectedSystemBackgroundFiles = new Set();
 /** @type {boolean} Whether click-to-select mode is active for system backgrounds */
 let isBackgroundSelectionMode = false;
+/** @type {(() => void)|null} Cleanup function for the open background preview */
+let closeBackgroundPreview = null;
 
 // A single transparent PNG pixel used as a placeholder for errored backgrounds
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -191,6 +193,237 @@ function createThumbnailElement(imageData) {
     titleElement.text(friendlyTitle);
 
     return thumbnail.get(0);
+}
+
+/**
+ * Opens a full-size, pannable preview of a background image.
+ * @param {string} imageUrl
+ * @param {string} title
+ */
+function openBackgroundPreview(imageUrl, title) {
+    closeBackgroundPreview?.();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'bg-preview-modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+
+    const container = document.createElement('div');
+    container.id = 'bg-preview-container';
+
+    const closeButton = document.createElement('button');
+    closeButton.id = 'bg-preview-close';
+    closeButton.type = 'button';
+    closeButton.title = t`Close`;
+    closeButton.setAttribute('aria-label', t`Close`);
+    closeButton.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+
+    const area = document.createElement('div');
+    area.id = 'bg-preview-scroll-area';
+
+    const image = document.createElement('img');
+    image.id = 'bg-preview-img';
+    image.src = imageUrl;
+    image.alt = title;
+    image.draggable = false;
+    area.append(image);
+
+    const hint = document.createElement('div');
+    hint.id = 'bg-preview-hint';
+    hint.textContent = t`Drag to pan · Scroll or pinch to zoom · Double-tap to reset`;
+
+    const controls = document.createElement('div');
+    controls.id = 'bg-preview-zoom-controls';
+    const makeButton = (id, label, text, onClick) => {
+        const button = document.createElement('button');
+        button.id = id;
+        button.type = 'button';
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        button.textContent = text;
+        button.addEventListener('click', onClick);
+        return button;
+    };
+
+    let scale = 1;
+    let tx = 0;
+    let ty = 0;
+    const zoomLabel = document.createElement('span');
+    zoomLabel.id = 'bg-zoom-label';
+
+    function applyTransform() {
+        image.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${scale})`;
+        zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    function clampPan() {
+        const areaW = area.clientWidth;
+        const areaH = area.clientHeight;
+        const imageW = Math.min(image.clientWidth || image.naturalWidth, areaW) * scale;
+        const imageH = Math.min(image.clientHeight || image.naturalHeight, areaH) * scale;
+        const maxTx = Math.max(0, (imageW - areaW) / 2);
+        const maxTy = Math.max(0, (imageH - areaH) / 2);
+        tx = Math.max(-maxTx, Math.min(maxTx, tx));
+        ty = Math.max(-maxTy, Math.min(maxTy, ty));
+    }
+
+    function setZoom(newScale) {
+        scale = Math.min(4, Math.max(0.5, newScale));
+        if (scale <= 1) {
+            tx = 0;
+            ty = 0;
+        } else {
+            clampPan();
+        }
+        applyTransform();
+    }
+
+    function resetView() {
+        scale = 1;
+        tx = 0;
+        ty = 0;
+        applyTransform();
+    }
+
+    const zoomStep = 0.25;
+    controls.append(
+        makeButton('bg-zoom-out', t`Zoom out`, '−', () => setZoom(scale - zoomStep)),
+        zoomLabel,
+        makeButton('bg-zoom-in', t`Zoom in`, '+', () => setZoom(scale + zoomStep)),
+        makeButton('bg-zoom-reset', t`Reset`, '⟳', resetView),
+    );
+
+    container.append(closeButton, area, hint, controls);
+    overlay.append(container);
+    document.documentElement.append(overlay);
+
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartTx = 0;
+    let dragStartTy = 0;
+    let lastTouchDist = null;
+    let pinchStartScale = 1;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTx = 0;
+    let touchStartTy = 0;
+    let isTouchPanning = false;
+    let lastTap = 0;
+
+    function positionOverlay() {
+        const viewport = window.visualViewport;
+        overlay.style.left = `${viewport?.offsetLeft ?? 0}px`;
+        overlay.style.top = `${viewport?.offsetTop ?? 0}px`;
+        overlay.style.width = `${viewport?.width ?? window.innerWidth}px`;
+        overlay.style.height = `${viewport?.height ?? window.innerHeight}px`;
+    }
+
+    function onMouseMove(event) {
+        if (!isDragging) return;
+        tx = dragStartTx + event.clientX - dragStartX;
+        ty = dragStartTy + event.clientY - dragStartY;
+        clampPan();
+        applyTransform();
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        area.classList.remove('dragging');
+    }
+
+    function onKeyDown(event) {
+        if (event.key === 'Escape') close();
+    }
+
+    function close() {
+        overlay.remove();
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        window.removeEventListener('resize', positionOverlay);
+        window.visualViewport?.removeEventListener('resize', positionOverlay);
+        window.visualViewport?.removeEventListener('scroll', positionOverlay);
+        document.removeEventListener('keydown', onKeyDown);
+        if (closeBackgroundPreview === close) closeBackgroundPreview = null;
+    }
+
+    closeBackgroundPreview = close;
+    positionOverlay();
+    window.addEventListener('resize', positionOverlay);
+    window.visualViewport?.addEventListener('resize', positionOverlay);
+    window.visualViewport?.addEventListener('scroll', positionOverlay);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keydown', onKeyDown);
+
+    image.addEventListener('load', () => {
+        clampPan();
+        applyTransform();
+    });
+    closeButton.addEventListener('click', close);
+    overlay.addEventListener('click', event => {
+        if (event.target === overlay) close();
+    });
+    area.addEventListener('wheel', event => {
+        event.preventDefault();
+        setZoom(scale + (event.deltaY < 0 ? zoomStep : -zoomStep));
+    }, { passive: false });
+    area.addEventListener('mousedown', event => {
+        if (event.button !== 0) return;
+        isDragging = true;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        dragStartTx = tx;
+        dragStartTy = ty;
+        area.classList.add('dragging');
+        event.preventDefault();
+    });
+    area.addEventListener('touchstart', event => {
+        event.stopPropagation();
+        if (event.touches.length === 2) {
+            event.preventDefault();
+            isTouchPanning = false;
+            const [first, second] = event.touches;
+            lastTouchDist = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+            pinchStartScale = scale;
+        } else if (event.touches.length === 1) {
+            const now = Date.now();
+            if (now - lastTap < 280) {
+                event.preventDefault();
+                resetView();
+                lastTap = 0;
+                return;
+            }
+            lastTap = now;
+            touchStartX = event.touches[0].clientX;
+            touchStartY = event.touches[0].clientY;
+            touchStartTx = tx;
+            touchStartTy = ty;
+            isTouchPanning = true;
+        }
+    }, { passive: false });
+    area.addEventListener('touchmove', event => {
+        event.stopPropagation();
+        if (event.touches.length === 2 && lastTouchDist !== null) {
+            event.preventDefault();
+            const [first, second] = event.touches;
+            const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+            setZoom(pinchStartScale * (distance / lastTouchDist));
+        } else if (isTouchPanning && event.touches.length === 1) {
+            event.preventDefault();
+            tx = touchStartTx + event.touches[0].clientX - touchStartX;
+            ty = touchStartTy + event.touches[0].clientY - touchStartY;
+            clampPan();
+            applyTransform();
+        }
+    }, { passive: false });
+    area.addEventListener('touchend', event => {
+        event.stopPropagation();
+        lastTouchDist = null;
+        isTouchPanning = false;
+    });
+
+    applyTransform();
 }
 
 /**
@@ -857,7 +1090,7 @@ async function getFolderCoverUrl(folder) {
     if (isAnimatedBackgroundExtension(file) && !background_settings.animation) {
         return getThumbnailFromStorage(file, false);
     }
-    return getThumbnailUrl('bg', file);
+    return getThumbnailUrl('bg', file, true);
 }
 
 /**
@@ -1431,7 +1664,7 @@ async function resolveImageUrl(bg, isCustom, isAnimated = null) {
         ? await getThumbnailFromStorage(bg, isCustom)
         : isCustom
             ? bg
-            : getThumbnailUrl('bg', bg);
+            : getThumbnailUrl('bg', bg, true);
 
     return `url("${thumbnailUrl}")`;
 }
@@ -1782,6 +2015,15 @@ export function initBackgrounds() {
                     if (bgEl.attr('custom') === 'true') break; // Only system backgrounds
                     const bgFile = bgEl.attr('bgfile');
                     if (bgFile) onSetFolderCover(bgFile);
+                    break;
+                }
+                case 'preview': {
+                    const bgEl = $(this).closest('.bg_example');
+                    const bgFile = bgEl.attr('bgfile');
+                    if (!bgFile) break;
+                    const isCustom = bgEl.attr('custom') === 'true';
+                    const imageUrl = isCustom ? bgFile : `/${getBackgroundPath(bgFile)}`;
+                    openBackgroundPreview(imageUrl, bgEl.attr('title') || bgFile);
                     break;
                 }
             }
